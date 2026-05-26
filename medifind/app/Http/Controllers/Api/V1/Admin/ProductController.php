@@ -5,7 +5,7 @@ namespace App\Http\Controllers\Api\V1\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\Product;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
 {
@@ -35,12 +35,13 @@ class ProductController extends Controller
             'is_active'   => ['boolean'],
         ]);
 
+        $data['slug'] = Product::slugFromName($data['name']);
+        $this->ensureProductSlugIsAvailable($data['slug']);
+
         if ($request->hasFile('image')) {
             $data['image'] = $request->file('image')
                 ->store('products', 'public');
         }
-
-        $data['slug'] = Str::slug($data['name']);
 
         $product = Product::create($data);
 
@@ -69,13 +70,14 @@ class ProductController extends Controller
             'is_active'   => ['boolean'],
         ]);
 
+        if (isset($data['name'])) {
+            $data['slug'] = Product::slugFromName($data['name']);
+            $this->ensureProductSlugIsAvailable($data['slug'], $product);
+        }
+
         if ($request->hasFile('image')) {
             $data['image'] = $request->file('image')
                 ->store('products', 'public');
-        }
-
-        if (isset($data['name'])) {
-            $data['slug'] = Str::slug($data['name']);
         }
 
         $product->update($data);
@@ -95,5 +97,16 @@ class ProductController extends Controller
         $product->delete();
 
         return response()->json(['message' => 'Product deleted.']);
+    }
+
+    private function ensureProductSlugIsAvailable(string $slug, ?Product $product = null): void
+    {
+        if (! Product::slugExists($slug, $product?->id)) {
+            return;
+        }
+
+        throw ValidationException::withMessages([
+            'name' => ['Product already exists.'],
+        ]);
     }
 }

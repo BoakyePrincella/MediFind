@@ -7,7 +7,7 @@ use App\Models\Product;
 use App\Models\ShopProduct;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ShopInventoryController extends Controller
 {
@@ -74,14 +74,22 @@ class ShopInventoryController extends Controller
             'notes'       => ['nullable', 'string', 'max:255'],
         ]);
 
-        return DB::transaction(function () use ($request, $shop, $data) {
+        $slug = Product::slugFromName($data['name']);
+
+        if (Product::slugExists($slug)) {
+            throw ValidationException::withMessages([
+                'name' => ['Product already exists in the catalogue. Please select it from existing products.'],
+            ]);
+        }
+
+        return DB::transaction(function () use ($request, $shop, $data, $slug) {
             $productData = [
                 'name'        => $data['name'],
                 'description' => $data['description'] ?? null,
                 'brand'       => $data['brand'] ?? null,
                 'category_id' => $data['category_id'],
                 'is_active'   => true,
-                'slug'        => $this->uniqueProductSlug($data['name']),
+                'slug'        => $slug,
             ];
 
             if ($request->hasFile('image')) {
@@ -102,20 +110,6 @@ class ShopInventoryController extends Controller
                 $shopProduct->load('product.category'), 201
             );
         });
-    }
-
-    private function uniqueProductSlug(string $name): string
-    {
-        $base = Str::slug($name);
-        $slug = $base;
-        $counter = 2;
-
-        while (Product::where('slug', $slug)->exists()) {
-            $slug = "{$base}-{$counter}";
-            $counter++;
-        }
-
-        return $slug;
     }
 
     /**

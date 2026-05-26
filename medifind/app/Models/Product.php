@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\{BelongsTo, HasMany};
+use Illuminate\Support\Str;
 
 class Product extends Model
 {
@@ -18,6 +19,19 @@ class Product extends Model
     protected $casts = [
         'is_active' => 'boolean',
     ];
+
+    public static function slugFromName(string $name): string
+    {
+        return Str::slug($name);
+    }
+
+    public static function slugExists(string $slug, ?int $ignoreId = null): bool
+    {
+        return static::query()
+            ->where('slug', $slug)
+            ->when($ignoreId, fn ($query) => $query->whereKeyNot($ignoreId))
+            ->exists();
+    }
 
     // ─── Relationships ───────────────────────────────
 
