@@ -73,6 +73,7 @@ Route::prefix('v1')->group(function () {
 
             // Inventory
         Route::get('inventory',[ShopInventoryController::class, 'index']);
+        Route::post('inventory/products',[ShopInventoryController::class, 'storeProduct']);
         Route::post('inventory',[ShopInventoryController::class, 'store']);
         Route::put('inventory/{shopProduct}',[ShopInventoryController::class, 'update']);
         Route::delete('inventory/{shopProduct}',[ShopInventoryController::class, 'destroy']);

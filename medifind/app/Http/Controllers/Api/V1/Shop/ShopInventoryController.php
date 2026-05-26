@@ -3,8 +3,11 @@
 namespace App\Http\Controllers\Api\V1\Shop;
 
 use App\Http\Controllers\Controller;
+use App\Models\Product;
 use App\Models\ShopProduct;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class ShopInventoryController extends Controller
 {
@@ -51,6 +54,68 @@ class ShopInventoryController extends Controller
         return response()->json(
             $shopProduct->load('product.category'), 201
         );
+    }
+
+    /**
+     * Create a new catalogue product and immediately add it to this shop.
+     */
+    public function storeProduct(Request $request)
+    {
+        $shop = $request->user()->shop;
+
+        $data = $request->validate([
+            'name'        => ['required', 'string', 'max:200'],
+            'description' => ['nullable', 'string'],
+            'brand'       => ['nullable', 'string', 'max:100'],
+            'category_id' => ['required', 'exists:categories,id'],
+            'image'       => ['nullable', 'image', 'max:2048'],
+            'price'       => ['required', 'numeric', 'min:0'],
+            'in_stock'    => ['boolean'],
+            'notes'       => ['nullable', 'string', 'max:255'],
+        ]);
+
+        return DB::transaction(function () use ($request, $shop, $data) {
+            $productData = [
+                'name'        => $data['name'],
+                'description' => $data['description'] ?? null,
+                'brand'       => $data['brand'] ?? null,
+                'category_id' => $data['category_id'],
+                'is_active'   => true,
+                'slug'        => $this->uniqueProductSlug($data['name']),
+            ];
+
+            if ($request->hasFile('image')) {
+                $productData['image'] = $request->file('image')
+                    ->store('products', 'public');
+            }
+
+            $product = Product::create($productData);
+
+            $shopProduct = $shop->shopProducts()->create([
+                'product_id' => $product->id,
+                'price'      => $data['price'],
+                'in_stock'   => $data['in_stock'] ?? true,
+                'notes'      => $data['notes'] ?? null,
+            ]);
+
+            return response()->json(
+                $shopProduct->load('product.category'), 201
+            );
+        });
+    }
+
+    private function uniqueProductSlug(string $name): string
+    {
+        $base = Str::slug($name);
+        $slug = $base;
+        $counter = 2;
+
+        while (Product::where('slug', $slug)->exists()) {
+            $slug = "{$base}-{$counter}";
+            $counter++;
+        }
+
+        return $slug;
     }
 
     /**
